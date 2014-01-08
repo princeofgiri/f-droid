@@ -383,7 +383,11 @@ public class AppDetails extends ListActivity {
 
     @Override
     protected void onPause() {
-        unregisterReceiver(bcastReceiver);
+        try {
+            unregisterReceiver(bcastReceiver);
+        } catch (IllegalArgumentException e) {
+            // Wasn't registered, pass
+        }
         if (downloadHandler != null) {
             downloadHandler.stopUpdates();
         }
