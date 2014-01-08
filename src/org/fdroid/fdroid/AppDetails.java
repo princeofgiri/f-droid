@@ -29,7 +29,7 @@ import org.xml.sax.XMLReader;
 
 import android.app.AlertDialog;
 import android.app.ListActivity;
-import android.app.ProgressDialog;
+import android.app.NotificationManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -65,6 +65,7 @@ import android.widget.BaseAdapter;
 import android.graphics.Bitmap;
 
 import android.support.v4.app.NavUtils;
+import android.support.v4.app.NotificationCompat;
 import android.support.v4.view.MenuItemCompat;
 
 import org.fdroid.fdroid.compat.PackageManagerCompat;
@@ -869,7 +870,7 @@ public class AppDetails extends ListActivity {
                         @Override
                         public void onClick(DialogInterface dialog,
                                 int whichButton) {
-                            downloadHandler = new DownloadHandler(app.curApk,
+                            downloadHandler = new DownloadHandler(app,
                                     repoaddress, Utils
                                     .getApkCacheDir(getBaseContext()));
                         }
@@ -900,7 +901,7 @@ public class AppDetails extends ListActivity {
             alert.show();
             return;
         }
-        downloadHandler = new DownloadHandler(app.curApk, repoaddress,
+        downloadHandler = new DownloadHandler(app, repoaddress,
                 Utils.getApkCacheDir(getBaseContext()));
     }
     
@@ -995,42 +996,34 @@ public class AppDetails extends ListActivity {
         startActivity(Intent.createChooser(shareIntent, getString(R.string.menu_share)));
     }
 
-    private ProgressDialog createProgressDialog(String file, int p, int max) {
-        final ProgressDialog pd = new ProgressDialog(this);
-        pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
-        pd.setMessage(getString(R.string.download_server) + ":\n " + file);
-        pd.setMax(max);
-        pd.setProgress(p);
-        pd.setCancelable(true);
-        pd.setCanceledOnTouchOutside(false);
-        pd.setOnCancelListener(new DialogInterface.OnCancelListener() {
-            @Override
-            public void onCancel(DialogInterface dialog) {
-                downloadHandler.cancel();
-            }
-        });
-        pd.setButton(DialogInterface.BUTTON_NEUTRAL,
-                getString(R.string.cancel),
-                new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        pd.cancel();
-                    }
-                });
-        pd.show();
-        return pd;
+    private NotificationCompat.Builder createProgressNotification(
+            DB.App app, String file, int p, int max) {
+        final NotificationCompat.Builder builder =
+            new NotificationCompat.Builder(this);
+        builder.setContentTitle(app.name)
+            .setContentText(file)
+            .setSmallIcon(android.R.drawable.stat_sys_download);
+
+        builder.setProgress(max, p, false);
+        builder.setAutoCancel(true);
+
+        // TODO: builder.setDeleteIntent(...);
+        return builder;
     }
 
-    // Handler used to update the progress dialog while downloading.
+    // Handler used to update the progress notification while downloading.
     private class DownloadHandler extends Handler {
         private Downloader download;
-        private ProgressDialog pd;
+        private NotificationCompat.Builder builder;
+        NotificationManager mNotificationManager;
         private boolean updating;
         private String id;
 
-        public DownloadHandler(DB.Apk apk, String repoaddress, File destdir) {
-            id = apk.id;
-            download = new Downloader(apk, repoaddress, destdir);
+        public DownloadHandler(DB.App app, String repoaddress, File destdir) {
+            mNotificationManager = (NotificationManager)
+                getSystemService(Context.NOTIFICATION_SERVICE);
+            id = app.id;
+            download = new Downloader(app.curApk, repoaddress, destdir);
             download.start();
             startUpdates();
         }
@@ -1046,16 +1039,17 @@ public class AppDetails extends ListActivity {
             boolean finished = false;
             switch (download.getStatus()) {
             case RUNNING:
-                if (pd == null) {
-                    pd = createProgressDialog(download.remoteFile(),
+                if (builder == null) {
+                    builder = createProgressNotification(
+                            app, download.remoteFile(),
                             download.getProgress(), download.getMax());
                 } else {
-                    pd.setProgress(download.getProgress());
+                    builder.setProgress(download.getMax(),
+                            download.getProgress(), false);
                 }
+                mNotificationManager.notify(2, builder.build());
                 break;
             case ERROR:
-                if (pd != null)
-                    pd.dismiss();
                 String text;
                 if (download.getErrorType() == Downloader.Error.CORRUPT)
                     text = getString(R.string.corrupt_download);
@@ -1065,9 +1059,11 @@ public class AppDetails extends ListActivity {
                 finished = true;
                 break;
             case DONE:
-                if (pd != null)
-                    pd.dismiss();
-                installApk(download.localFile(), id);
+                if (builder != null) {
+                    builder.setProgress(0, 0, false);
+                    mNotificationManager.notify(2, builder.build());
+                }
+                // TODO: installApk(download.localFile(), id);
                 finished = true;
                 break;
             case CANCELLED:
@@ -1100,14 +1096,10 @@ public class AppDetails extends ListActivity {
         }
 
         public void destroy() {
-            // The dialog can't be dismissed when it's not displayed,
-            // so do it when the activity is being destroyed.
-            if (pd != null) {
-                pd.dismiss();
-                pd = null;
-            }
+            mNotificationManager.cancel(2);
+            builder = null;
             // Cancel any scheduled updates so that we don't
-            // accidentally recreate the progress dialog.
+            // accidentally recreate the progress notification.
             stopUpdates();
         }
 
