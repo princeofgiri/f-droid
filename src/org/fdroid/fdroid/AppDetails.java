@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010-12  Ciaran Gultnieks, ciaran@ciarang.com
+ * Copyright (C) 2013-14 Daniel Martí <mvdan@mvdan.cc>
  * Copyright (C) 2013 Stefan Völkel, bd@bc-bd.org
  *
  * This program is free software; you can redistribute it and/or
@@ -30,6 +31,7 @@ import org.xml.sax.XMLReader;
 import android.app.AlertDialog;
 import android.app.ListActivity;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -44,10 +46,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.PackageInfo;
 import android.content.pm.Signature;
 import android.content.pm.PackageManager.NameNotFoundException;
-import android.content.Context;
-import android.content.DialogInterface;
-import android.content.Intent;
-import android.content.SharedPreferences;
+import android.content.*;
 import android.text.Editable;
 import android.text.Html;
 import android.text.Html.TagHandler;
@@ -92,6 +91,7 @@ public class AppDetails extends ListActivity {
         TextView added;
         TextView nativecode;
     }
+    private static final String NOTIF_DELETED_ACTION = "org.fdroid.fdroid.NOTIFICATION_DELETED";
 
     private class ApkListAdapter extends BaseAdapter {
 
@@ -253,6 +253,20 @@ public class AppDetails extends ListActivity {
     private DisplayImageOptions displayImageOptions;
     private InstallManager installManager;
 
+    private BroadcastReceiver bcastReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            Log.d("FDroid", "BROADCAST RECEIVED");
+            if (downloadHandler != null) {
+                downloadHandler.cancel();
+                if (!stateRetained)
+                    downloadHandler.cancel();
+                downloadHandler.destroy();
+            }
+        }
+    };
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
 
@@ -356,15 +370,20 @@ public class AppDetails extends ListActivity {
         }
         updateViews();
 
+        registerReceiver(bcastReceiver,
+                new IntentFilter(NOTIF_DELETED_ACTION));
+
         MenuManager.create(this).invalidateOptionsMenu();
 
         if (downloadHandler != null) {
             downloadHandler.startUpdates();
         }
+
     }
 
     @Override
     protected void onPause() {
+        unregisterReceiver(bcastReceiver);
         if (downloadHandler != null) {
             downloadHandler.stopUpdates();
         }
@@ -1000,14 +1019,19 @@ public class AppDetails extends ListActivity {
             DB.App app, String file, int p, int max) {
         final NotificationCompat.Builder builder =
             new NotificationCompat.Builder(this);
+
         builder.setContentTitle(app.name)
             .setContentText(file)
-            .setSmallIcon(android.R.drawable.stat_sys_download);
+            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setAutoCancel(false)
+            .setProgress(max, p, false);
 
-        builder.setProgress(max, p, false);
-        builder.setAutoCancel(true);
+        Intent intent = new Intent();
+        intent.setAction(NOTIF_DELETED_ACTION);
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(
+                    mctx, 0, intent, 0);
+        builder.setDeleteIntent(pendingIntent);
 
-        // TODO: builder.setDeleteIntent(...);
         return builder;
     }
 
@@ -1022,10 +1046,12 @@ public class AppDetails extends ListActivity {
         public DownloadHandler(DB.App app, String repoaddress, File destdir) {
             mNotificationManager = (NotificationManager)
                 getSystemService(Context.NOTIFICATION_SERVICE);
+
             id = app.id;
             download = new Downloader(app.curApk, repoaddress, destdir);
             download.start();
             startUpdates();
+
         }
 
         public DownloadHandler(DownloadHandler oldHandler) {
@@ -1055,20 +1081,20 @@ public class AppDetails extends ListActivity {
                     text = getString(R.string.corrupt_download);
                 else
                     text = download.getErrorMessage();
-                Toast.makeText(AppDetails.this, text, Toast.LENGTH_LONG).show();
+                Toast.makeText(mctx, text, Toast.LENGTH_LONG).show();
                 finished = true;
                 break;
             case DONE:
                 if (builder != null) {
-                    builder.setProgress(0, 0, false);
+                    builder.setProgress(0, 0, false)
+                        .setSmallIcon(android.R.drawable.stat_sys_download_done);
                     mNotificationManager.notify(2, builder.build());
                 }
                 // TODO: installApk(download.localFile(), id);
                 finished = true;
                 break;
             case CANCELLED:
-                Toast.makeText(AppDetails.this,
-                        getString(R.string.download_cancelled),
+                Toast.makeText(mctx, getString(R.string.download_cancelled),
                         Toast.LENGTH_SHORT).show();
                 finished = true;
                 break;
