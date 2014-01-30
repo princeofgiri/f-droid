@@ -26,6 +26,8 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import org.fdroid.fdroid.data.Repo;
+import org.fdroid.fdroid.data.RepoProvider;
 import org.xml.sax.XMLReader;
 
 import android.app.AlertDialog;
@@ -160,9 +162,10 @@ public class AppDetails extends ListActivity {
 
             holder.version.setText(getString(R.string.version)
                     + " " + apk.version
-                    + (apk == app.curApk ? "   ☆" : ""));
+                    + (apk == app.curApk ? "  ☆" : ""));
 
             if (apk.vercode == app.installedVerCode
+                    && mInstalledSigID != null && apk.sig != null
                     && apk.sig.equals(mInstalledSigID)) {
                 holder.status.setText(getString(R.string.inst));
             } else {
@@ -171,15 +174,17 @@ public class AppDetails extends ListActivity {
 
             if (apk.detail_size > 0) {
                 holder.size.setText(Utils.getFriendlySize(apk.detail_size));
+                holder.size.setVisibility(View.VISIBLE);
             } else {
-                holder.size.setText("");
+                holder.size.setVisibility(View.GONE);
             }
 
             if (apk.minSdkVersion > 0) {
                 holder.api.setText(getString(R.string.minsdk_or_later,
                             Utils.getAndroidVersionName(apk.minSdkVersion)));
+                holder.api.setVisibility(View.VISIBLE);
             } else {
-                holder.api.setText("");
+                holder.api.setVisibility(View.GONE);
             }
 
             if (apk.srcname != null) {
@@ -191,14 +196,21 @@ public class AppDetails extends ListActivity {
             if (apk.added != null) {
                 holder.added.setText(getString(R.string.added_on,
                             df.format(apk.added)));
+                holder.added.setVisibility(View.VISIBLE);
             } else {
-                holder.added.setText("");
+                holder.added.setVisibility(View.GONE);
             }
 
             if (pref_expert && apk.nativecode != null) {
                 holder.nativecode.setText(apk.nativecode.toString().replaceAll(","," "));
+                holder.nativecode.setVisibility(View.VISIBLE);
             } else {
-                holder.nativecode.setText("");
+                holder.nativecode.setVisibility(View.GONE);
+            }
+
+            if (apk.incompatible_reasons != null) {
+                holder.api.setText(apk.incompatible_reasons.toString());
+                holder.api.setVisibility(View.VISIBLE);
             }
 
             // Disable it all if it isn't compatible...
@@ -331,19 +343,19 @@ public class AppDetails extends ListActivity {
             resetRequired = false;
         }
 
+        SharedPreferences prefs = PreferenceManager
+                .getDefaultSharedPreferences(getBaseContext());
+        pref_expert = prefs.getBoolean(Preferences.PREF_EXPERT, false);
+        pref_permissions = prefs.getBoolean(Preferences.PREF_PERMISSIONS, false);
+        pref_incompatibleVersions = prefs.getBoolean(
+                Preferences.PREF_INCOMP_VER, false);
+
         // Set up the list...
         headerView = new LinearLayout(this);
         ListView lv = (ListView) findViewById(android.R.id.list);
         lv.addHeaderView(headerView);
         ApkListAdapter la = new ApkListAdapter(this, app.apks);
         setListAdapter(la);
-
-        SharedPreferences prefs = PreferenceManager
-                .getDefaultSharedPreferences(getBaseContext());
-        pref_expert = prefs.getBoolean("expert", false);
-        pref_permissions = prefs.getBoolean("showPermissions", false);
-        pref_incompatibleVersions = prefs.getBoolean(
-                "incompatibleVersions", false);
 
         startViews();
 
@@ -518,8 +530,10 @@ public class AppDetails extends ListActivity {
         tv = (TextView) findViewById(R.id.license);
         tv.setText(app.license);
 
-        tv = (TextView) findViewById(R.id.categories);
-        tv.setText(app.categories.toString().replaceAll(",",", "));
+        if (app.categories != null) {
+            tv = (TextView) findViewById(R.id.categories);
+            tv.setText(app.categories.toString().replaceAll(",",", "));
+        }
 
         tv = (TextView) infoView.findViewById(R.id.description);
 
@@ -570,10 +584,11 @@ public class AppDetails extends ListActivity {
         tv = (TextView) infoView.findViewById(R.id.summary);
         tv.setText(app.summary);
 
-        if (pref_permissions && !app.apks.isEmpty()) {
+        if (pref_permissions && app.curApk != null &&
+                (app.curApk.compatible || pref_incompatibleVersions)) {
             tv = (TextView) infoView.findViewById(R.id.permissions_list);
 
-            CommaSeparatedList permsList = app.apks.get(0).detail_permissions;
+            CommaSeparatedList permsList = app.curApk.detail_permissions;
             if (permsList == null) {
                 tv.setText(getString(R.string.no_permissions));
             } else {
@@ -870,20 +885,13 @@ public class AppDetails extends ListActivity {
     // Install the version of this app denoted by 'app.curApk'.
     private void install() {
 
-        String ra = null;
-        try {
-            DB db = DB.getDB();
-            DB.Repo repo = db.getRepo(app.curApk.repo);
-            if (repo != null)
-                ra = repo.address;
-        } catch (Exception ex) {
-            Log.d("FDroid", "Failed to get repo address - " + ex.getMessage());
-        } finally {
-            DB.releaseDB();
-        }
-        if (ra == null)
+        String [] projection = { RepoProvider.DataColumns.ADDRESS };
+        Repo repo = RepoProvider.Helper.findById(
+                getContentResolver(), app.curApk.repo, projection);
+        if (repo == null || repo.address == null) {
             return;
-        final String repoaddress = ra;
+        }
+        final String repoaddress = repo.address;
 
         if (!app.curApk.compatible) {
             AlertDialog.Builder ask_alrt = new AlertDialog.Builder(this);

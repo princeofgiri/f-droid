@@ -12,10 +12,13 @@ The only required tools are the Android SDK and Apache Ant.
 
 ```
 git submodule update --init
-android update project -p .
-android update project -p extern/Universal-Image-Loader/library
+./ant-prepare.sh # This runs 'android update' on the libs and the main project
 ant clean release
 ```
+
+The project itself supports Gradle, but some of the libraries it uses don't.
+Hence it is currently not possible to build F-Droid with Gradle in a clean way
+without manual interaction.
 
 
 Direct download

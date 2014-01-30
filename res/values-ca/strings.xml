@@ -39,6 +39,7 @@ L\'adreça d\'un dipòsit té un aspecte com ara: http://f-droid.org/repo</strin
   <string name="repo_add_title">Afegeix un nou dipòsit</string>
   <string name="repo_add_add">Afegeix</string>
   <string name="cancel">Anul·la</string>
+  <string name="overwrite">Sobreescriu</string>
   <string name="repo_delete_title">Trieu el dipòsit que voleu suprimir</string>
   <string name="repo_update_title">Actualitza els dipòsits</string>
   <string name="tab_noninstalled">Disponible</string>
@@ -50,6 +51,7 @@ L\'adreça d\'un dipòsit té un aspecte com ara: http://f-droid.org/repo</strin
   <string name="process_update_msg">S\'està actualitzant la llista d\'aplicacions…</string>
   <string name="download_server">S\'està obtenint l\'aplicació des de</string>
   <string name="repo_add_url">Adreça del dipòsit</string>
+  <string name="repo_exists">Aquest repositori ja existeix.</string>
   <string name="repo_alrt">La llista de dipòsits ha canviat.
 La voleu actualitzar?</string>
   <string name="menu_update_repo">Actualitza els dipòsits</string>

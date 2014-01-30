@@ -34,6 +34,7 @@ class OldActionBarCompatImpl extends ActionBarCompat {
     public void setDisplayHomeAsUpEnabled(boolean value) {
         // Do nothing...
     }
+
 }
 
 @TargetApi(11)
@@ -50,4 +51,5 @@ class HoneycombActionBarCompatImpl extends ActionBarCompat {
     public void setDisplayHomeAsUpEnabled(boolean value) {
         actionBar.setDisplayHomeAsUpEnabled(value);
     }
+
 }

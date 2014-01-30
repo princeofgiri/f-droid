@@ -1,28 +1,31 @@
+
 package org.fdroid.fdroid.views;
 
-import android.content.Intent;
+import android.net.Uri;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.support.v4.app.FragmentActivity;
-import org.fdroid.fdroid.DB;
+import android.text.TextUtils;
+
 import org.fdroid.fdroid.compat.ActionBarCompat;
+import org.fdroid.fdroid.data.Repo;
+import org.fdroid.fdroid.data.RepoProvider;
 import org.fdroid.fdroid.views.fragments.RepoDetailsFragment;
 
-public class RepoDetailsActivity extends FragmentActivity implements RepoDetailsFragment.OnRepoChangeListener {
+public class RepoDetailsActivity extends FragmentActivity {
 
-    public static final String ACTION_IS_DELETED = "isDeleted";
-    public static final String ACTION_IS_ENABLED = "isEnabled";
-    public static final String ACTION_IS_DISABLED = "isDisabled";
-    public static final String ACTION_IS_CHANGED = "isChanged";
-
-    public static final String DATA_REPO_ID     = "repoId";
+    private WifiManager wifiManager;
+    private Repo repo;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        long repoId = getIntent().getLongExtra(RepoDetailsFragment.ARG_REPO_ID, 0);
+
         if (savedInstanceState == null) {
             RepoDetailsFragment fragment = new RepoDetailsFragment();
-            fragment.setRepoChangeListener(this);
             fragment.setArguments(getIntent().getExtras());
             getSupportFragmentManager()
                 .beginTransaction()
@@ -30,40 +33,31 @@ public class RepoDetailsActivity extends FragmentActivity implements RepoDetails
                 .commit();
         }
 
+        String[] projection = new String[] {
+                RepoProvider.DataColumns.NAME,
+                RepoProvider.DataColumns.ADDRESS,
+                RepoProvider.DataColumns.FINGERPRINT
+        };
+        repo = RepoProvider.Helper.findById(getContentResolver(), repoId, projection);
+
         ActionBarCompat.create(this).setDisplayHomeAsUpEnabled(true);
+        setTitle(repo.getName());
+
+        wifiManager = (WifiManager) getSystemService(WIFI_SERVICE);
     }
 
-    private void finishWithAction(String actionName) {
-        Intent data = new Intent();
-        data.putExtra(actionName, true);
-        data.putExtra(DATA_REPO_ID, getIntent().getIntExtra(RepoDetailsFragment.ARG_REPO_ID, -1));
-        setResult(RESULT_OK, data);
-        finish();
+    protected Uri getSharingUri() {
+        Uri uri = Uri.parse(repo.address.replaceFirst("http", "fdroidrepo"));
+        Uri.Builder b = uri.buildUpon();
+        b.appendQueryParameter("fingerprint", repo.fingerprint);
+        WifiInfo wifiInfo = wifiManager.getConnectionInfo();
+        String ssid = wifiInfo.getSSID().replaceAll("^\"(.*)\"$", "$1");
+        String bssid = wifiInfo.getBSSID();
+        if (!TextUtils.isEmpty(bssid)) {
+            b.appendQueryParameter("bssid", Uri.encode(bssid));
+            if (!TextUtils.isEmpty(ssid))
+                b.appendQueryParameter("ssid", Uri.encode(ssid));
+        }
+        return b.build();
     }
-
-    @Override
-    public void onDeleteRepo(DB.Repo repo) {
-        finishWithAction(ACTION_IS_DELETED);
-    }
-
-    @Override
-    public void onRepoDetailsChanged(DB.Repo repo) {
-        // Do nothing...
-    }
-
-    @Override
-    public void onEnableRepo(DB.Repo repo) {
-        finishWithAction(ACTION_IS_ENABLED);
-    }
-
-    @Override
-    public void onDisableRepo(DB.Repo repo) {
-        finishWithAction(ACTION_IS_DISABLED);
-    }
-
-    @Override
-    public void onUpdatePerformed(DB.Repo repo) {
-        // do nothing - the actual update is done by the repo fragment...
-    }
-
 }

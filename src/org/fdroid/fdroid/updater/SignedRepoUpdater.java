@@ -6,7 +6,7 @@ import org.fdroid.fdroid.DB;
 import org.fdroid.fdroid.Hasher;
 import org.fdroid.fdroid.R;
 import org.fdroid.fdroid.Utils;
-import org.fdroid.fdroid.net.Downloader;
+import org.fdroid.fdroid.data.Repo;
 
 import java.io.*;
 import java.security.cert.Certificate;
@@ -16,7 +16,7 @@ import java.util.jar.JarFile;
 
 public class SignedRepoUpdater extends RepoUpdater {
 
-    public SignedRepoUpdater(Context ctx, DB.Repo repo) {
+    public SignedRepoUpdater(Context ctx, Repo repo) {
         super(ctx, repo);
     }
 
@@ -30,7 +30,10 @@ public class SignedRepoUpdater extends RepoUpdater {
         boolean match = false;
         for (Certificate cert : certs) {
             String certdata = Hasher.hex(cert);
-            if (repo.pubkey.equals(certdata)) {
+            if (repo.pubkey == null && repo.fingerprint.equals(DB.calcFingerprint(cert))) {
+                repo.pubkey = certdata;
+            }
+            if (repo.pubkey != null && repo.pubkey.equals(certdata)) {
                 match = true;
                 break;
             }

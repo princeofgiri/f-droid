@@ -39,6 +39,9 @@ En förrådsadress ser ut så här: https://f-droid.org/repo</string>
   <string name="repo_add_title">Lägg till nytt förråd</string>
   <string name="repo_add_add">Lägg till</string>
   <string name="cancel">Avbryt</string>
+  <string name="enable">Aktivera</string>
+  <string name="add_key">Lägg till nyckel</string>
+  <string name="overwrite">Skriv över</string>
   <string name="repo_delete_title">Välj förråd att ta bort</string>
   <string name="repo_update_title">Uppdatera förråd</string>
   <string name="tab_noninstalled">Tillgängliga</string>
@@ -50,6 +53,12 @@ En förrådsadress ser ut så här: https://f-droid.org/repo</string>
   <string name="process_update_msg">Uppdaterar programlistan…</string>
   <string name="download_server">Hämtar program från</string>
   <string name="repo_add_url">Förrådsadress</string>
+  <string name="repo_add_fingerprint">fingeravtryck (valfritt)</string>
+  <string name="repo_exists">Detta förråd existerar redan!</string>
+  <string name="repo_exists_add_fingerprint">Detta förråd är redan installerat, detta kommer lägga till ny nyckelinformation.</string>
+  <string name="repo_exists_enable">Detta förråd är redan installerat, bekräfta att du vill återaktivera det.</string>
+  <string name="repo_exists_and_enabled">Inkommande förråd är redan installerat och aktiverat!</string>
+  <string name="repo_delete_to_overwrite">Du måste först ta bort detta förråd innan du kan lägga till ett med en annan nyckel!</string>
   <string name="repo_alrt">Listan över förråd har ändrats.
 Vill du uppdatera dem?</string>
   <string name="menu_update_repo">Uppdatera förråd</string>
@@ -79,6 +88,7 @@ Vill du uppdatera dem?</string>
   <string name="antinonfreeadlist">Denna app främjar ofria tillägg</string>
   <string name="antinonfreenetlist">Denna app främjar ofria nätverkstjänster</string>
   <string name="antinonfreedeplist">Denna app beror på andra ofria appar</string>
+  <string name="antiupstreamnonfreelist">Källkoden från uppströms är inte fullständigt fri</string>
   <string name="display">Visning</string>
   <string name="expert">Expert</string>
   <string name="search_hint">Sök program</string>

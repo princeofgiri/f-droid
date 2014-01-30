@@ -81,6 +81,7 @@
 	<string name="repo_exists_enable">This repo is already setup, confirm that you want to re-enable it.</string>
 	<string name="repo_exists_and_enabled">The incoming repo is already setup and enabled!</string>
 	<string name="repo_delete_to_overwrite">You must first delete this repo before you can add one with a different key!</string>
+	<string name="malformed_repo_uri">Ignoring malformed repo URI: %s</string>
 
 	<string name="repo_alrt">The list of used repositories has
 		changed.\nDo you
@@ -167,7 +168,7 @@
     <string name="unsigned">Unsigned</string>
     <string name="repo_url">URL</string>
     <string name="repo_num_apps">Number of apps</string>
-    <string name="repo_signature">Signature</string>
+    <string name="repo_fingerprint">Fingerprint of Repo Signing Key (SHA-256)</string>
     <string name="repo_description">Description</string>
     <string name="repo_last_update">Last update</string>
     <string name="repo_update">Update</string>
@@ -194,6 +195,7 @@
     <string name="repo_disabled_notification">Disabled "%1$s".\n\nYou will
         need to re-enable this repository to install apps from it.
     </string>
-    <string name="minsdk_or_later">Android %s or later</string>
+    <string name="minsdk_or_later">%s or later</string>
+    <string name="not_on_same_wifi">Your device is not on the same WiFi as the local repo you just added! Try joining this network: %s</string>
 
 </resources>
