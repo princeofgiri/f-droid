@@ -22,12 +22,12 @@ package org.fdroid.fdroid;
 
 import java.io.File;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-import org.fdroid.fdroid.data.Repo;
-import org.fdroid.fdroid.data.RepoProvider;
+import android.content.*;
+import android.widget.*;
+import org.fdroid.fdroid.data.*;
 import org.xml.sax.XMLReader;
 
 import android.app.AlertDialog;
@@ -39,11 +39,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.preference.PreferenceManager;
-import android.widget.ImageView;
-import android.widget.LinearLayout;
-import android.widget.ListView;
-import android.widget.TextView;
-import android.widget.Toast;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageInfo;
 import android.content.pm.Signature;
@@ -62,7 +57,6 @@ import android.view.MenuItem;
 import android.view.SubMenu;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.BaseAdapter;
 import android.graphics.Bitmap;
 
 import android.support.v4.app.NavUtils;
@@ -72,75 +66,51 @@ import android.support.v4.view.MenuItemCompat;
 import org.fdroid.fdroid.compat.PackageManagerCompat;
 import org.fdroid.fdroid.compat.ActionBarCompat;
 import org.fdroid.fdroid.compat.MenuManager;
-import org.fdroid.fdroid.DB.CommaSeparatedList;
+import org.fdroid.fdroid.Utils.CommaSeparatedList;
 
-import com.nostra13.universalimageloader.core.display.FadeInBitmapDisplayer;
 import com.nostra13.universalimageloader.core.DisplayImageOptions;
 import com.nostra13.universalimageloader.core.ImageLoader;
 import com.nostra13.universalimageloader.core.assist.ImageScaleType;
-import com.nostra13.universalimageloader.utils.StorageUtils;
-
-import android.os.Environment;
 
 public class AppDetails extends ListActivity {
+
+    private static final int REQUEST_INSTALL = 0;
+    private static final int REQUEST_UNINSTALL = 1;
+    private ApkListAdapter adapter;
 
     private static class ViewHolder {
         TextView version;
         TextView status;
         TextView size;
         TextView api;
+        TextView incompatibleReasons;
         TextView buildtype;
         TextView added;
         TextView nativecode;
     }
     private static final String NOTIF_DELETED_ACTION = "org.fdroid.fdroid.NOTIFICATION_DELETED";
 
-    private class ApkListAdapter extends BaseAdapter {
+    private class ApkListAdapter extends ArrayAdapter<Apk> {
 
-        private List<DB.Apk> items;
-        private LayoutInflater mInflater;
+        private LayoutInflater mInflater = (LayoutInflater) mctx.getSystemService(
+                Context.LAYOUT_INFLATER_SERVICE);
 
-        public ApkListAdapter(Context context, List<DB.Apk> items) {
-            this.items = new ArrayList<DB.Apk>();
-            if (items != null) {
-                for (DB.Apk apk : items) {
-                    this.addItem(apk);
+        public ApkListAdapter(Context context, App app) {
+            super(context, 0);
+            List<Apk> apks = ApkProvider.Helper.findByApp(context.getContentResolver(), app.id);
+            for (Apk apk : apks ) {
+                if (apk.compatible || pref_incompatibleVersions) {
+                    add(apk);
                 }
             }
-            mInflater = (LayoutInflater) mctx.getSystemService(
-                    Context.LAYOUT_INFLATER_SERVICE);
-        }
 
-        public void addItem(DB.Apk apk) {
-            if (apk.compatible || pref_incompatibleVersions) {
-                items.add(apk);
-            }
-        }
-
-        public List<DB.Apk> getItems() {
-            return items;
-        }
-
-        @Override
-        public int getCount() {
-            return items.size();
-        }
-
-        @Override
-        public Object getItem(int position) {
-            return items.get(position);
-        }
-
-        @Override
-        public long getItemId(int position) {
-            return position;
         }
 
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
 
             java.text.DateFormat df = DateFormat.getDateFormat(mctx);
-            DB.Apk apk = items.get(position);
+            Apk apk = getItem(position);
             ViewHolder holder;
 
             if (convertView == null) {
@@ -151,6 +121,7 @@ public class AppDetails extends ListActivity {
                 holder.status = (TextView) convertView.findViewById(R.id.status);
                 holder.size = (TextView) convertView.findViewById(R.id.size);
                 holder.api = (TextView) convertView.findViewById(R.id.api);
+                holder.incompatibleReasons = (TextView) convertView.findViewById(R.id.incompatible_reasons);
                 holder.buildtype = (TextView) convertView.findViewById(R.id.buildtype);
                 holder.added = (TextView) convertView.findViewById(R.id.added);
                 holder.nativecode = (TextView) convertView.findViewById(R.id.nativecode);
@@ -162,9 +133,9 @@ public class AppDetails extends ListActivity {
 
             holder.version.setText(getString(R.string.version)
                     + " " + apk.version
-                    + (apk == app.curApk ? "  ☆" : ""));
+                    + (apk.vercode == app.curVercode ? "  ☆" : ""));
 
-            if (apk.vercode == app.installedVerCode
+            if (apk.vercode == app.getInstalledVerCode(getContext())
                     && mInstalledSigID != null && apk.sig != null
                     && apk.sig.equals(mInstalledSigID)) {
                 holder.status.setText(getString(R.string.inst));
@@ -172,14 +143,14 @@ public class AppDetails extends ListActivity {
                 holder.status.setText(getString(R.string.not_inst));
             }
 
-            if (apk.detail_size > 0) {
-                holder.size.setText(Utils.getFriendlySize(apk.detail_size));
+            if (apk.size > 0) {
+                holder.size.setText(Utils.getFriendlySize(apk.size));
                 holder.size.setVisibility(View.VISIBLE);
             } else {
                 holder.size.setVisibility(View.GONE);
             }
 
-            if (apk.minSdkVersion > 0) {
+            if (pref_expert && apk.minSdkVersion > 0) {
                 holder.api.setText(getString(R.string.minsdk_or_later,
                             Utils.getAndroidVersionName(apk.minSdkVersion)));
                 holder.api.setVisibility(View.VISIBLE);
@@ -209,8 +180,13 @@ public class AppDetails extends ListActivity {
             }
 
             if (apk.incompatible_reasons != null) {
-                holder.api.setText(apk.incompatible_reasons.toString());
-                holder.api.setVisibility(View.VISIBLE);
+                holder.incompatibleReasons.setText(
+                    getResources().getString(
+                        R.string.requires_features,
+                        apk.incompatible_reasons.toPrettyString()));
+                holder.incompatibleReasons.setVisibility(View.VISIBLE);
+            } else {
+                holder.incompatibleReasons.setVisibility(View.GONE);
             }
 
             // Disable it all if it isn't compatible...
@@ -220,13 +196,14 @@ public class AppDetails extends ListActivity {
                 holder.status,
                 holder.size,
                 holder.api,
+                holder.incompatibleReasons,
                 holder.buildtype,
                 holder.added,
                 holder.nativecode
             };
 
-            for (View view : views) {
-                view.setEnabled(apk.compatible);
+            for (View v : views) {
+                v.setEnabled(apk.compatible);
             }
 
             return convertView;
@@ -249,7 +226,7 @@ public class AppDetails extends ListActivity {
     private static final int FLATTR = Menu.FIRST + 13;
     private static final int DONATE_URL = Menu.FIRST + 14;
 
-    private DB.App app;
+    private App app;
     private String appid;
     private PackageManager mPm;
     private DownloadHandler downloadHandler;
@@ -354,8 +331,8 @@ public class AppDetails extends ListActivity {
         headerView = new LinearLayout(this);
         ListView lv = (ListView) findViewById(android.R.id.list);
         lv.addHeaderView(headerView);
-        ApkListAdapter la = new ApkListAdapter(this, app.apks);
-        setListAdapter(la);
+        adapter = new ApkListAdapter(this, app);
+        setListAdapter(adapter);
 
         startViews();
 
@@ -405,16 +382,23 @@ public class AppDetails extends ListActivity {
         }
         if (app != null && (app.ignoreAllUpdates != startingIgnoreAll
                 || app.ignoreThisUpdate != startingIgnoreThis)) {
-            try {
-                DB db = DB.getDB();
-                db.setIgnoreUpdates(app.id,
-                        app.ignoreAllUpdates, app.ignoreThisUpdate);
-            } finally {
-                DB.releaseDB();
-            }
+            setIgnoreUpdates(app.id, app.ignoreAllUpdates, app.ignoreThisUpdate);
         }
         super.onPause();
     }
+
+    public void setIgnoreUpdates(String appId, boolean ignoreAll, int ignoreVersionCode) {
+
+        Uri uri = AppProvider.getContentUri(appId);
+
+        ContentValues values = new ContentValues(2);
+        values.put(AppProvider.DataColumns.IGNORE_ALLUPDATES, ignoreAll ? 1 : 0);
+        values.put(AppProvider.DataColumns.IGNORE_THISUPDATE, ignoreVersionCode);
+
+        getContentResolver().update(uri, values, null, null);
+
+    }
+
 
     @Override
     public Object onRetainNonConfigurationInstance() {
@@ -450,15 +434,11 @@ public class AppDetails extends ListActivity {
 
         Log.d("FDroid", "Getting application details for " + appid);
         app = null;
+
         if (appid != null && appid.length() > 0) {
-            List<DB.App> apps = ((FDroidApp) getApplication()).getApps();
-            for (DB.App tapp : apps) {
-                if (tapp.id.equals(appid)) {
-                    app = tapp;
-                    break;
-                }
-            }
+            app = AppProvider.Helper.findById(getContentResolver(), appid);
         }
+
         if (app == null) {
             Toast toast = Toast.makeText(this,
                     getString(R.string.no_such_app), Toast.LENGTH_LONG);
@@ -467,23 +447,13 @@ public class AppDetails extends ListActivity {
             return false;
         }
 
-        // Make sure the app is populated.
-        try {
-            DB db = DB.getDB();
-            db.populateDetails(app, 0);
-        } catch (Exception ex) {
-            Log.d("FDroid", "Failed to populate app - " + ex.getMessage());
-        } finally {
-            DB.releaseDB();
-        }
-
         startingIgnoreAll = app.ignoreAllUpdates;
         startingIgnoreThis = app.ignoreThisUpdate;
 
         // Get the signature of the installed package...
         mInstalledSignature = null;
         mInstalledSigID = null;
-        if (app.installedVersion != null) {
+        if (app.getInstalledVersion(this) != null) {
             PackageManager pm = getBaseContext().getPackageManager();
             try {
                 PackageInfo pi = pm.getPackageInfo(appid,
@@ -572,7 +542,7 @@ public class AppDetails extends ListActivity {
             }
         }
         Spanned desc = Html.fromHtml(
-                app.detail_description, null, new HtmlTagHandler());
+                app.description, null, new HtmlTagHandler());
         tv.setText(desc.subSequence(0, desc.length() - 2));
 
         tv = (TextView) infoView.findViewById(R.id.appid);
@@ -584,11 +554,20 @@ public class AppDetails extends ListActivity {
         tv = (TextView) infoView.findViewById(R.id.summary);
         tv.setText(app.summary);
 
-        if (pref_permissions && app.curApk != null &&
-                (app.curApk.compatible || pref_incompatibleVersions)) {
+        Apk curApk = null;
+        for (int i = 0; i < adapter.getCount(); i ++) {
+            Apk apk = adapter.getItem(i);
+            if (apk.vercode == app.curVercode) {
+                curApk = apk;
+                break;
+            }
+        }
+
+        if (pref_permissions && !adapter.isEmpty() &&
+                ((curApk != null && curApk.compatible) || pref_incompatibleVersions)) {
             tv = (TextView) infoView.findViewById(R.id.permissions_list);
 
-            CommaSeparatedList permsList = app.curApk.detail_permissions;
+            CommaSeparatedList permsList = adapter.getItem(0).permissions;
             if (permsList == null) {
                 tv.setText(getString(R.string.no_permissions));
             } else {
@@ -613,7 +592,7 @@ public class AppDetails extends ListActivity {
             }
             tv = (TextView) infoView.findViewById(R.id.permissions);
             tv.setText(getString(
-                    R.string.permissions_for_long, app.apks.get(0).version));
+                    R.string.permissions_for_long, adapter.getItem(0).version));
         } else {
             infoView.findViewById(R.id.permissions).setVisibility(View.GONE);
             infoView.findViewById(R.id.permissions_list).setVisibility(View.GONE);
@@ -658,15 +637,14 @@ public class AppDetails extends ListActivity {
     private void updateViews() {
 
         // Refresh the list...
-        ApkListAdapter la = (ApkListAdapter) getListAdapter();
-        la.notifyDataSetChanged();
+        adapter.notifyDataSetChanged();
 
         TextView tv = (TextView) findViewById(R.id.status);
-        if (app.installedVersion == null)
+        if (app.getInstalledVersion(this) == null)
             tv.setText(getString(R.string.details_notinstalled));
         else
             tv.setText(getString(R.string.details_installed,
-                    app.installedVersion));
+                    app.getInstalledVersion(this)));
 
         tv = (TextView) infoView.findViewById(R.id.signature);
         if (pref_expert && mInstalledSignature != null) {
@@ -680,10 +658,10 @@ public class AppDetails extends ListActivity {
 
     @Override
     protected void onListItemClick(ListView l, View v, int position, long id) {
-        app.curApk = app.apks.get(position - l.getHeaderViewsCount());
-        if (app.installedVerCode == app.curApk.vercode)
+        final Apk apk = adapter.getItem(position - l.getHeaderViewsCount());
+        if (app.getInstalledVerCode(this) == apk.vercode)
             removeApk(app.id);
-        else if (app.installedVerCode > app.curApk.vercode) {
+        else if (app.getInstalledVerCode(this) > apk.vercode) {
             AlertDialog.Builder ask_alrt = new AlertDialog.Builder(this);
             ask_alrt.setMessage(getString(R.string.installDowngrade));
             ask_alrt.setPositiveButton(getString(R.string.yes),
@@ -691,7 +669,7 @@ public class AppDetails extends ListActivity {
                         @Override
                         public void onClick(DialogInterface dialog,
                                 int whichButton) {
-                            install();
+                            install(apk);
                         }
                     });
             ask_alrt.setNegativeButton(getString(R.string.no),
@@ -704,7 +682,7 @@ public class AppDetails extends ListActivity {
             AlertDialog alert = ask_alrt.create();
             alert.show();
         } else
-            install();
+            install(apk);
     }
 
     @Override
@@ -714,20 +692,23 @@ public class AppDetails extends ListActivity {
         menu.clear();
         if (app == null)
             return true;
-        if (app.toUpdate) {
+        if (app.canAndWantToUpdate(this)) {
             MenuItemCompat.setShowAsAction(menu.add(
                         Menu.NONE, INSTALL, 0, R.string.menu_upgrade)
                         .setIcon(R.drawable.ic_menu_refresh),
                     MenuItemCompat.SHOW_AS_ACTION_ALWAYS |
                     MenuItemCompat.SHOW_AS_ACTION_WITH_TEXT);
         }
-        if (app.installedVersion == null && app.curApk != null) {
+
+        // Check count > 0 due to incompatible apps resulting in an empty list.
+        if (app.getInstalledVersion(this) == null && app.curVercode > 0 &&
+                adapter.getCount() > 0) {
             MenuItemCompat.setShowAsAction(menu.add(
                         Menu.NONE, INSTALL, 1, R.string.menu_install)
                         .setIcon(android.R.drawable.ic_menu_add),
                     MenuItemCompat.SHOW_AS_ACTION_ALWAYS |
                     MenuItemCompat.SHOW_AS_ACTION_WITH_TEXT);
-        } else if (app.installedVersion != null) {
+        } else if (app.getInstalledVersion(this) != null) {
             MenuItemCompat.setShowAsAction(menu.add(
                         Menu.NONE, UNINSTALL, 1, R.string.menu_uninstall)
                         .setIcon(android.R.drawable.ic_menu_delete),
@@ -754,40 +735,40 @@ public class AppDetails extends ListActivity {
                     .setCheckable(true)
                     .setChecked(app.ignoreAllUpdates);
 
-        if (app.hasUpdates) {
+        if (app.hasUpdates(this)) {
             menu.add(Menu.NONE, IGNORETHIS, 2, R.string.menu_ignore_this)
                         .setIcon(android.R.drawable.ic_menu_close_clear_cancel)
                         .setCheckable(true)
-                        .setChecked(app.ignoreThisUpdate >= app.curApk.vercode);
+                        .setChecked(app.ignoreThisUpdate >= app.curVercode);
         }
-        if (app.detail_webURL.length() > 0) {
+        if (app.webURL.length() > 0) {
             menu.add(Menu.NONE, WEBSITE, 3, R.string.menu_website).setIcon(
                     android.R.drawable.ic_menu_view);
         }
-        if (app.detail_trackerURL.length() > 0) {
+        if (app.trackerURL.length() > 0) {
             menu.add(Menu.NONE, ISSUES, 4, R.string.menu_issues).setIcon(
                     android.R.drawable.ic_menu_view);
         }
-        if (app.detail_sourceURL.length() > 0) {
+        if (app.sourceURL.length() > 0) {
             menu.add(Menu.NONE, SOURCE, 5, R.string.menu_source).setIcon(
                     android.R.drawable.ic_menu_view);
         }
 
-        if (app.detail_bitcoinAddr != null || app.detail_litecoinAddr != null ||
-                app.detail_dogecoinAddr != null ||
-                app.detail_flattrID != null || app.detail_donateURL != null) {
+        if (app.bitcoinAddr != null || app.litecoinAddr != null ||
+                app.dogecoinAddr != null ||
+                app.flattrID != null || app.donateURL != null) {
             SubMenu donate = menu.addSubMenu(Menu.NONE, DONATE, 7,
                     R.string.menu_donate).setIcon(
                     android.R.drawable.ic_menu_send);
-            if (app.detail_bitcoinAddr != null)
+            if (app.bitcoinAddr != null)
                 donate.add(Menu.NONE, BITCOIN, 8, R.string.menu_bitcoin);
-            if (app.detail_litecoinAddr != null)
+            if (app.litecoinAddr != null)
                 donate.add(Menu.NONE, LITECOIN, 8, R.string.menu_litecoin);
-            if (app.detail_dogecoinAddr != null)
+            if (app.dogecoinAddr != null)
                 donate.add(Menu.NONE, DOGECOIN, 8, R.string.menu_dogecoin);
-            if (app.detail_flattrID != null)
+            if (app.flattrID != null)
                 donate.add(Menu.NONE, FLATTR, 9, R.string.menu_flattr);
-            if (app.detail_donateURL != null)
+            if (app.donateURL != null)
                 donate.add(Menu.NONE, DONATE_URL, 10, R.string.menu_website);
         }
 
@@ -825,8 +806,10 @@ public class AppDetails extends ListActivity {
 
         case INSTALL:
             // Note that this handles updating as well as installing.
-            if (app.curApk != null)
-                install();
+            if (app.curVercode > 0) {
+                final Apk apkToInstall = ApkProvider.Helper.find(this, app.id, app.curVercode);
+                install(apkToInstall);
+            }
             return true;
 
         case UNINSTALL:
@@ -839,43 +822,43 @@ public class AppDetails extends ListActivity {
             return true;
 
         case IGNORETHIS:
-            if (app.ignoreThisUpdate >= app.curApk.vercode)
+            if (app.ignoreThisUpdate >= app.curVercode)
                 app.ignoreThisUpdate = 0;
             else
-                app.ignoreThisUpdate = app.curApk.vercode;
+                app.ignoreThisUpdate = app.curVercode;
             item.setChecked(app.ignoreThisUpdate > 0);
             return true;
 
         case WEBSITE:
-            tryOpenUri(app.detail_webURL);
+            tryOpenUri(app.webURL);
             return true;
 
         case ISSUES:
-            tryOpenUri(app.detail_trackerURL);
+            tryOpenUri(app.trackerURL);
             return true;
 
         case SOURCE:
-            tryOpenUri(app.detail_sourceURL);
+            tryOpenUri(app.sourceURL);
             return true;
 
         case BITCOIN:
-            tryOpenUri("bitcoin:" + app.detail_bitcoinAddr);
+            tryOpenUri("bitcoin:" + app.bitcoinAddr);
             return true;
 
         case LITECOIN:
-            tryOpenUri("litecoin:" + app.detail_litecoinAddr);
+            tryOpenUri("litecoin:" + app.litecoinAddr);
             return true;
 
         case DOGECOIN:
-            tryOpenUri("dogecoin:" + app.detail_dogecoinAddr);
+            tryOpenUri("dogecoin:" + app.dogecoinAddr);
             return true;
 
         case FLATTR:
-            tryOpenUri("https://flattr.com/thing/" + app.detail_flattrID);
+            tryOpenUri("https://flattr.com/thing/" + app.flattrID);
             return true;
 
         case DONATE_URL:
-            tryOpenUri(app.detail_donateURL);
+            tryOpenUri(app.donateURL);
             return true;
 
         }
@@ -883,17 +866,16 @@ public class AppDetails extends ListActivity {
     }
 
     // Install the version of this app denoted by 'app.curApk'.
-    private void install() {
-
+    private void install(final Apk apk) {
         String [] projection = { RepoProvider.DataColumns.ADDRESS };
         Repo repo = RepoProvider.Helper.findById(
-                getContentResolver(), app.curApk.repo, projection);
+                getContentResolver(), apk.repo, projection);
         if (repo == null || repo.address == null) {
             return;
         }
         final String repoaddress = repo.address;
 
-        if (!app.curApk.compatible) {
+        if (!apk.compatible) {
             AlertDialog.Builder ask_alrt = new AlertDialog.Builder(this);
             ask_alrt.setMessage(getString(R.string.installIncompatible));
             ask_alrt.setPositiveButton(getString(R.string.yes),
@@ -901,7 +883,7 @@ public class AppDetails extends ListActivity {
                         @Override
                         public void onClick(DialogInterface dialog,
                                 int whichButton) {
-                            downloadHandler = new DownloadHandler(app,
+                            downloadHandler = new DownloadHandler(apk,
                                     repoaddress, Utils
                                     .getApkCacheDir(getBaseContext()));
                         }
@@ -917,8 +899,8 @@ public class AppDetails extends ListActivity {
             alert.show();
             return;
         }
-        if (mInstalledSigID != null && app.curApk.sig != null
-                && !app.curApk.sig.equals(mInstalledSigID)) {
+        if (mInstalledSigID != null && apk.sig != null
+                && !apk.sig.equals(mInstalledSigID)) {
             AlertDialog.Builder builder = new AlertDialog.Builder(this);
             builder.setMessage(R.string.SignatureMismatch).setPositiveButton(
                     getString(R.string.ok),
@@ -932,7 +914,7 @@ public class AppDetails extends ListActivity {
             alert.show();
             return;
         }
-        downloadHandler = new DownloadHandler(app, repoaddress,
+        downloadHandler = new DownloadHandler(apk, repoaddress,
                 Utils.getApkCacheDir(getBaseContext()));
     }
     
@@ -1017,7 +999,7 @@ public class AppDetails extends ListActivity {
         startActivity(intent);
     }
 
-    private void shareApp(DB.App app) {
+    private void shareApp(App app) {
         Intent shareIntent = new Intent(Intent.ACTION_SEND);
         shareIntent.setType("text/plain");
 
@@ -1055,12 +1037,11 @@ public class AppDetails extends ListActivity {
         private boolean updating;
         private String id;
 
-        public DownloadHandler(DB.App app, String repoaddress, File destdir) {
+        public DownloadHandler(Apk apk, String repoaddress, File destdir) {
             mNotificationManager = (NotificationManager)
                 getSystemService(Context.NOTIFICATION_SERVICE);
-
-            id = app.id;
-            download = new Downloader(app.curApk, repoaddress, destdir);
+            id = apk.id;
+            download = new Downloader(apk, repoaddress, destdir);
             download.start();
             startUpdates();
 
