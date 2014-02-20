@@ -9,6 +9,7 @@
 	<string name="version">Version</string>
 	<string name="edit">Edit</string>
 	<string name="delete">Delete</string>
+	<string name="enable_nfc_send">Enable NFC Send…</string>
 	<string name="cache_downloaded">App cache</string>
 	<string name="cache_downloaded_on">Keep downloaded apk files on SD card</string>
 	<string name="cache_downloaded_off">Do not keep any apk files</string>
@@ -73,6 +74,10 @@
 	<string name="process_wait_title">Please Wait</string>
 	<string name="process_update_msg">Updating application list…</string>
 	<string name="download_server">Getting application from</string>
+	<string name="nfc_is_not_enabled">NFC is not enabled!</string>
+	<string name="go_to_nfc_settings">Go to NFC Settings…</string>
+	<string name="bluetooth_activity_not_found">No Bluetooth send method found, choose one!</string>
+	<string name="choose_bt_send">Choose Bluetooth send method</string>
 
 	<string name="repo_add_url">Repository address</string>
 	<string name="repo_add_fingerprint">Fingerprint (optional)</string>
@@ -89,11 +94,13 @@
 
 	<string name="menu_update_repo">Update Repos</string>
 	<string name="menu_manage">Repositories</string>
+	<string name="menu_send_apk_bt">Bluetooth FDroid.apk…</string>
 	<string name="menu_preferences">Preferences</string>
 	<string name="menu_about">About</string>
 	<string name="menu_search">Search</string>
 	<string name="menu_add_repo">New Repository</string>
 	<string name="menu_rem_repo">Remove Repository</string>
+	<string name="menu_scan_repo">Find Local Repos</string>
 
 	<string name="menu_launch">Run</string>
 	<string name="menu_share">Share</string>
@@ -141,6 +148,9 @@
 	<string name="category_all">All</string>
 	<string name="category_whatsnew">What\'s New</string>
 	<string name="category_recentlyupdated">Recently Updated</string>
+
+	<string name="local_repos_title">Local FDroid Repos</string>
+	<string name="local_repos_scanning">Discovering local FDroid repos&#8230;</string>
 
 	<!--
 	status_download takes four parameters:
@@ -194,7 +204,9 @@
     <string name="repo_disabled_notification">Disabled "%1$s".\n\nYou will
         need to re-enable this repository to install apps from it.
     </string>
-    <string name="minsdk_or_later">Android %s or later</string>
+    <string name="minsdk_or_later">%s or later</string>
+    <string name="up_to_maxsdk">up to %s</string>
+    <string name="minsdk_up_to_maxsdk">%1$s up to %2$s</string>
     <string name="not_on_same_wifi">Your device is not on the same WiFi as the local repo you just added! Try joining this network: %s</string>
     <string name="requires_features">Requires: %1$s</string>
 

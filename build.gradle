@@ -3,7 +3,7 @@ buildscript {
 		mavenCentral()
 	}
 	dependencies {
-		classpath 'com.android.tools.build:gradle:0.7.+'
+		classpath 'com.android.tools.build:gradle:0.8.+'
 	}
 }
 
@@ -12,16 +12,56 @@ apply plugin: 'android'
 dependencies {
 	compile files('libs/android-support-v4.jar')
 	compile project(':extern:AndroidPinning')
+	compile project(':extern:UniversalImageLoader:library')
+	compile project(':extern:MemorizingTrustManager')
+}
+
+subprojects {
+	buildscript {
+		repositories {
+			mavenCentral()
+		}
+		dependencies {
+			classpath 'com.android.tools.build:gradle:0.8.+'
+		}
+	}
+	apply plugin: 'android-library'
+	android {
+		buildToolsVersion '19.0.1'
+		packagingOptions {
+			exclude "META-INF/LICENSE*"
+			exclude "META-INF/NOTICE*"
+			exclude "META-INF/README*"
+			exclude "META-INF/CHANGELOG*"
+			exclude "META-INF/BUILD*"
+		}
+	}
+}
+
+project(':extern:UniversalImageLoader:library') {
+	android {
+		compileSdkVersion 16
+
+		sourceSets {
+			main {
+				manifest.srcFile 'AndroidManifest.xml'
+				java.srcDirs = ['src']
+				resources.srcDirs = ['src']
+				aidl.srcDirs = ['src']
+				renderscript.srcDirs = ['src']
+			}
+		}
+	}
 }
 
 android {
 	compileSdkVersion 19
-	buildToolsVersion "19.0.1"
+	buildToolsVersion '19.0.1'
 
 	sourceSets {
 		main {
 			manifest.srcFile 'AndroidManifest.xml'
-			java.srcDirs = ['src', 'extern/Universal-Image-Loader/library/src']
+			java.srcDirs = ['src']
 			resources.srcDirs = ['src']
 			aidl.srcDirs = ['src']
 			renderscript.srcDirs = ['src']

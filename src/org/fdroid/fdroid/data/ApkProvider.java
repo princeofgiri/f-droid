@@ -25,46 +25,13 @@ public class ApkProvider extends FDroidProvider {
 
         private Helper() {}
 
-        public static void update(Context context, Apk apk,
-                                  String id, int versionCode) {
-            ContentResolver resolver = context.getContentResolver();
-            Uri uri = getContentUri(id, versionCode);
-            resolver.update(uri, apk.toContentValues(), null, null);
-        }
-
         public static void update(Context context, Apk apk) {
             ContentResolver resolver = context.getContentResolver();
             Uri uri = getContentUri(apk.id, apk.vercode);
             resolver.update(uri, apk.toContentValues(), null, null);
         }
 
-        /**
-         * This doesn't do anything other than call "insert" on the content
-         * resolver, but I thought I'd put it here in the interests of having
-         * each of the CRUD methods available in the helper class.
-         */
-        public static void insert(Context context, ContentValues values) {
-            ContentResolver resolver = context.getContentResolver();
-            resolver.insert(getContentUri(), values);
-        }
-
-        public static void insert(Context context, Apk apk) {
-            insert(context, apk.toContentValues());
-        }
-
-        public static List<Apk> all(Context context) {
-            return all(context, DataColumns.ALL);
-        }
-
-        public static List<Apk> all(Context context, String[] projection) {
-
-            ContentResolver resolver = context.getContentResolver();
-            Uri uri = ApkProvider.getContentUri();
-            Cursor cursor = resolver.query(uri, projection, null, null, null);
-            return cursorToList(cursor);
-        }
-
-        private static List<Apk> cursorToList(Cursor cursor) {
+        public static List<Apk> cursorToList(Cursor cursor) {
             List<Apk> apks = new ArrayList<Apk>();
             if (cursor != null) {
                 cursor.moveToFirst();
@@ -77,20 +44,16 @@ public class ApkProvider extends FDroidProvider {
             return apks;
         }
 
-        public static void deleteApksByRepo(Context context, Repo repo) {
+        public static int deleteApksByRepo(Context context, Repo repo) {
             ContentResolver resolver = context.getContentResolver();
-            Uri uri = getContentUri();
-            String[] args = { Long.toString(repo.getId()) };
-            String selection = DataColumns.REPO_ID + " = ?";
-            int count = resolver.delete(uri, selection, args);
+            Uri uri = getRepoUri(repo.getId());
+            return resolver.delete(uri, null, null);
         }
 
         public static void deleteApksByApp(Context context, App app) {
             ContentResolver resolver = context.getContentResolver();
-            Uri uri = getContentUri();
-            String[] args = { app.id };
-            String selection = DataColumns.APK_ID + " = ?";
-            resolver.delete(uri, selection, args);
+            Uri uri = getAppUri(app.id);
+            resolver.delete(uri, null, null);
         }
 
         public static Apk find(Context context, String id, int versionCode) {
@@ -109,18 +72,13 @@ public class ApkProvider extends FDroidProvider {
             }
         }
 
-        public static void delete(Context context, String id, int versionCode) {
-            ContentResolver resolver = context.getContentResolver();
-            Uri uri = getContentUri(id, versionCode);
-            resolver.delete(uri, null, null);
+        public static List<Apk> findByApp(Context context, String appId) {
+            return findByApp(context, appId, ApkProvider.DataColumns.ALL);
         }
 
-        public static List<Apk> findByApp(ContentResolver resolver, String appId) {
-            return findByApp(resolver, appId, ApkProvider.DataColumns.ALL);
-        }
-
-        public static List<Apk> findByApp(ContentResolver resolver,
+        public static List<Apk> findByApp(Context context,
                                           String appId, String[] projection) {
+            ContentResolver resolver = context.getContentResolver();
             Uri uri = getAppUri(appId);
             String sort = ApkProvider.DataColumns.VERSION_CODE + " DESC";
             Cursor cursor = resolver.query(uri, projection, null, null, sort);
@@ -131,8 +89,9 @@ public class ApkProvider extends FDroidProvider {
          * Returns apks in the database, which have the same id and version as
          * one of the apks in the "apks" argument.
          */
-        public static List<Apk> knownApks(ContentResolver resolver,
+        public static List<Apk> knownApks(Context context,
                                              List<Apk> apks, String[] fields) {
+            ContentResolver resolver = context.getContentResolver();
             Uri uri = getContentUri(apks);
             Cursor cursor = resolver.query(uri, fields, null, null, null);
             return cursorToList(cursor);
@@ -141,7 +100,7 @@ public class ApkProvider extends FDroidProvider {
 
     public interface DataColumns extends BaseColumns {
 
-        public static String APK_ID = "id";
+        public static String APK_ID          = "id";
         public static String VERSION         = "version";
         public static String REPO_ID         = "repo";
         public static String HASH            = "hash";
@@ -151,6 +110,7 @@ public class ApkProvider extends FDroidProvider {
         public static String SIGNATURE       = "sig";
         public static String SOURCE_NAME     = "srcname";
         public static String MIN_SDK_VERSION = "minSdkVersion";
+        public static String MAX_SDK_VERSION = "maxSdkVersion";
         public static String PERMISSIONS     = "permissions";
         public static String FEATURES        = "features";
         public static String NATIVE_CODE     = "nativecode";
@@ -163,9 +123,9 @@ public class ApkProvider extends FDroidProvider {
 
         public static String[] ALL = {
             _ID, APK_ID, VERSION, REPO_ID, HASH, VERSION_CODE, NAME, SIZE,
-            SIGNATURE, SOURCE_NAME, MIN_SDK_VERSION, PERMISSIONS, FEATURES,
-            NATIVE_CODE, HASH_TYPE, ADDED_DATE, IS_COMPATIBLE,
-            REPO_VERSION, REPO_ADDRESS, INCOMPATIBLE_REASONS
+            SIGNATURE, SOURCE_NAME, MIN_SDK_VERSION, MAX_SDK_VERSION,
+            PERMISSIONS, FEATURES, NATIVE_CODE, HASH_TYPE, ADDED_DATE,
+            IS_COMPATIBLE, REPO_VERSION, REPO_ADDRESS, INCOMPATIBLE_REASONS
         };
     }
 
@@ -256,6 +216,7 @@ public class ApkProvider extends FDroidProvider {
         return PROVIDER_NAME;
     }
 
+    @Override
     protected UriMatcher getMatcher() {
         return matcher;
     }
@@ -274,8 +235,8 @@ public class ApkProvider extends FDroidProvider {
                 addRepoField(REPO_FIELDS.get(field), field);
             } else if (field.equals(DataColumns._ID)) {
                 appendField("rowid", "apk", "_id");
-            } else if (field.startsWith("COUNT")) {
-                appendField(field);
+            } else if (field.equals(DataColumns._COUNT)) {
+                appendField("COUNT(*) AS " + DataColumns._COUNT);
             } else {
                 appendField(field, "apk");
             }
@@ -324,6 +285,7 @@ public class ApkProvider extends FDroidProvider {
             this.orderBy = orderBy;
         }
 
+        @Override
         public String toString() {
 
             StringBuilder suffix = new StringBuilder();
@@ -340,7 +302,7 @@ public class ApkProvider extends FDroidProvider {
     }
 
     private QuerySelection queryApp(String appId) {
-        String selection = " id = ? ";
+        String selection = DataColumns.APK_ID + " = ? ";
         String[] args = new String[] { appId };
         return new QuerySelection(selection, args);
     }
@@ -357,7 +319,7 @@ public class ApkProvider extends FDroidProvider {
     }
 
     private QuerySelection queryRepo(long repoId) {
-        String selection = " repo = ? ";
+        String selection = DataColumns.REPO_ID + " = ? ";
         String[] args = new String[]{ Long.toString(repoId) };
         return new QuerySelection(selection, args);
     }
@@ -366,6 +328,11 @@ public class ApkProvider extends FDroidProvider {
         String[] apkDetails = apkKeys.split(",");
         String[] args = new String[apkDetails.length * 2];
         StringBuilder sb = new StringBuilder();
+        if (apkDetails.length > MAX_APKS_TO_QUERY) {
+            throw new IllegalArgumentException(
+                "Cannot query more than " + MAX_APKS_TO_QUERY + ". " +
+                "You tried to query " + apkDetails.length);
+        }
         for (int i = 0; i < apkDetails.length; i ++) {
             String[] parts = apkDetails[i].split(":");
             String id = parts[0];
@@ -437,7 +404,8 @@ public class ApkProvider extends FDroidProvider {
     @Override
     public Uri insert(Uri uri, ContentValues values) {
         removeRepoFields(values);
-        long id = write().insertOrThrow(getTableName(), null, values);
+        validateFields(DataColumns.ALL, values);
+        write().insertOrThrow(getTableName(), null, values);
         if (!isApplyingBatch()) {
             getContext().getContentResolver().notifyChange(uri, null);
         }
@@ -453,17 +421,29 @@ public class ApkProvider extends FDroidProvider {
         QuerySelection query = new QuerySelection(where, whereArgs);
 
         switch (matcher.match(uri)) {
-            case CODE_LIST:
-                // Don't support deleting of multiple apks yet.
-                return 0;
 
             case CODE_REPO:
                 query = query.add(queryRepo(Long.parseLong(uri.getLastPathSegment())));
                 break;
 
-            case CODE_SINGLE:
-                query = query.add(querySingle(uri));
+            case CODE_APP:
+                query = query.add(queryApp(uri.getLastPathSegment()));
                 break;
+
+            case CODE_LIST:
+                throw new UnsupportedOperationException(
+                    "Can't delete all apks. " +
+                    "Can only delete those belonging to an app, or a repo.");
+
+            case CODE_APKS:
+                throw new UnsupportedOperationException(
+                    "Can't delete arbitrary apks. " +
+                    "Can only delete those belonging to an app, or a repo.");
+
+            case CODE_SINGLE:
+                throw new UnsupportedOperationException(
+                    "Can't delete individual apks. " +
+                    "Can only delete those belonging to an app, or a repo.");
 
             default:
                 Log.e("FDroid", "Invalid URI for apk content provider: " + uri);
@@ -479,18 +459,16 @@ public class ApkProvider extends FDroidProvider {
     @Override
     public int update(Uri uri, ContentValues values, String where, String[] whereArgs) {
 
-        QuerySelection query = new QuerySelection(where, whereArgs);
-
-        switch (matcher.match(uri)) {
-            case CODE_LIST:
-                return 0;
-
-            case CODE_SINGLE:
-                query = query.add(querySingle(uri));
-                break;
+        if (matcher.match(uri) != CODE_SINGLE) {
+            throw new UnsupportedOperationException("Cannot update anything other than a single apk.");
         }
 
+        validateFields(DataColumns.ALL, values);
         removeRepoFields(values);
+
+        QuerySelection query = new QuerySelection(where, whereArgs);
+        query = query.add(querySingle(uri));
+
         int numRows = write().update(getTableName(), values, query.getSelection(), query.getArgs());
         if (!isApplyingBatch()) {
             getContext().getContentResolver().notifyChange(uri, null);

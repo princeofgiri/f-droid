@@ -1,10 +1,11 @@
 /local.properties
-/.classpath
 /bin/
 /gen/
 /build/
 /.gradle/
+/build.xml
 *~
 /.idea/
 /*.iml
 out
+/.settings/

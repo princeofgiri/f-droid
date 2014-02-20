@@ -97,7 +97,7 @@ public class AppDetails extends ListActivity {
 
         public ApkListAdapter(Context context, App app) {
             super(context, 0);
-            List<Apk> apks = ApkProvider.Helper.findByApp(context.getContentResolver(), app.id);
+            List<Apk> apks = ApkProvider.Helper.findByApp(context, app.id);
             for (Apk apk : apks ) {
                 if (apk.compatible || pref_incompatibleVersions) {
                     add(apk);
@@ -150,12 +150,21 @@ public class AppDetails extends ListActivity {
                 holder.size.setVisibility(View.GONE);
             }
 
-            if (pref_expert && apk.minSdkVersion > 0) {
+            if (!pref_expert) {
+                holder.api.setVisibility(View.GONE);
+            } else if (apk.minSdkVersion > 0 && apk.maxSdkVersion > 0) {
+                holder.api.setText(getString(R.string.minsdk_up_to_maxsdk,
+                            Utils.getAndroidVersionName(apk.minSdkVersion),
+                            Utils.getAndroidVersionName(apk.maxSdkVersion)));
+                holder.api.setVisibility(View.VISIBLE);
+            } else if (apk.minSdkVersion > 0) {
                 holder.api.setText(getString(R.string.minsdk_or_later,
                             Utils.getAndroidVersionName(apk.minSdkVersion)));
                 holder.api.setVisibility(View.VISIBLE);
-            } else {
-                holder.api.setVisibility(View.GONE);
+            } else if (apk.maxSdkVersion > 0) {
+                holder.api.setText(getString(R.string.up_to_maxsdk,
+                            Utils.getAndroidVersionName(apk.maxSdkVersion)));
+                holder.api.setVisibility(View.VISIBLE);
             }
 
             if (apk.srcname != null) {
@@ -196,7 +205,6 @@ public class AppDetails extends ListActivity {
                 holder.status,
                 holder.size,
                 holder.api,
-                holder.incompatibleReasons,
                 holder.buildtype,
                 holder.added,
                 holder.nativecode
@@ -868,8 +876,7 @@ public class AppDetails extends ListActivity {
     // Install the version of this app denoted by 'app.curApk'.
     private void install(final Apk apk) {
         String [] projection = { RepoProvider.DataColumns.ADDRESS };
-        Repo repo = RepoProvider.Helper.findById(
-                getContentResolver(), apk.repo, projection);
+        Repo repo = RepoProvider.Helper.findById(this, apk.repo, projection);
         if (repo == null || repo.address == null) {
             return;
         }

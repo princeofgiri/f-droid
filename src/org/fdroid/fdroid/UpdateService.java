@@ -55,6 +55,20 @@ public class UpdateService extends IntentService implements ProgressListener {
         super("UpdateService");
     }
 
+    /**
+     * When an app already exists in the db, and we are updating it on the off chance that some
+     * values changed in the index, some fields should not be updated. Rather, they should be
+     * ignored, because they were explicitly set by the user, and hence can't be automatically
+     * overridden by the index.
+     *
+     * NOTE: In the future, these attributes will be moved to a join table, so that the app table
+     * is essentially completely transient, and can be nuked at any time.
+     */
+    private static final String[] APP_FIELDS_TO_IGNORE = {
+        AppProvider.DataColumns.IGNORE_ALLUPDATES,
+        AppProvider.DataColumns.IGNORE_THISUPDATE
+    };
+
     // For receiving results from the UpdateService when we've told it to
     // update in response to a user request.
     public static class UpdateReceiver extends ResultReceiver {
@@ -233,8 +247,7 @@ public class UpdateService extends IntentService implements ProgressListener {
 
             // Grab some preliminary information, then we can release the
             // database while we do all the downloading, etc...
-            int updates = 0;
-            List<Repo> repos = RepoProvider.Helper.all(getContentResolver());
+            List<Repo> repos = RepoProvider.Helper.all(this);
 
             // Process each repo...
             Map<String, App> appsToUpdate = new HashMap<String, App>();
@@ -304,8 +317,8 @@ public class UpdateService extends IntentService implements ProgressListener {
             if (success && changes && prefs.getBoolean(Preferences.PREF_UPD_NOTIFY, false)) {
                 int updateCount = 0;
                 for (App app : appsToUpdate.values()) {
-                    if (app.hasUpdates(this)) {
-                        updateCount ++;
+                    if (app.canAndWantToUpdate(this)) {
+                        updateCount++;
                     }
                 }
 
@@ -531,7 +544,7 @@ public class UpdateService extends IntentService implements ProgressListener {
             ApkProvider.DataColumns.VERSION,
             ApkProvider.DataColumns.VERSION_CODE
         };
-        return ApkProvider.Helper.knownApks(getContentResolver(), apks, fields);
+        return ApkProvider.Helper.knownApks(this, apks, fields);
     }
 
     private void updateOrInsertApps(List<App> appsToUpdate, int totalUpdateCount, int currentCount) {
@@ -644,6 +657,11 @@ public class UpdateService extends IntentService implements ProgressListener {
     private ContentProviderOperation updateExistingApp(App app) {
         Uri uri = AppProvider.getContentUri(app);
         ContentValues values = app.toContentValues();
+        for (String toIgnore : APP_FIELDS_TO_IGNORE) {
+            if (values.containsKey(toIgnore)) {
+                values.remove(toIgnore);
+            }
+        }
         return ContentProviderOperation.newUpdate(uri).withValues(values).build();
     }
 

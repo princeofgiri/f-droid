@@ -1,18 +1,17 @@
 package org.fdroid.fdroid;
 
 import android.content.ContentValues;
-import android.content.pm.PackageInfo;
 import android.database.Cursor;
-import android.net.Uri;
-import android.provider.ContactsContract;
+
+import mock.MockCategoryResources;
 import mock.MockInstallablePackageManager;
+
 import org.fdroid.fdroid.data.ApkProvider;
 import org.fdroid.fdroid.data.App;
 import org.fdroid.fdroid.data.AppProvider;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 public class AppProviderTest extends FDroidProviderTest<AppProvider> {
 
@@ -20,6 +19,13 @@ public class AppProviderTest extends FDroidProviderTest<AppProvider> {
         super(AppProvider.class, AppProvider.getAuthority());
     }
 
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        getSwappableContext().setResources(new MockCategoryResources());
+    }
+
+    @Override
     protected String[] getMinimalProjection() {
         return new String[] {
             AppProvider.DataColumns.APP_ID,
@@ -53,6 +59,12 @@ public class AppProviderTest extends FDroidProviderTest<AppProvider> {
         assertNotNull(cursor);
     }
 
+    private void insertApps(int count) {
+        for (int i = 0; i < count; i ++) {
+            insertApp("com.example.test." + i, "Test app " + i);
+        }
+    }
+
     public void testInstalled() {
 
         Utils.clearInstalledApksCache();
@@ -60,24 +72,16 @@ public class AppProviderTest extends FDroidProviderTest<AppProvider> {
         MockInstallablePackageManager pm = new MockInstallablePackageManager();
         getSwappableContext().setPackageManager(pm);
 
-        for (int i = 0; i < 100; i ++) {
-            insertApp("com.example.test." + i, "Test app " + i);
-        }
+        insertApps(100);
 
-        assertAppCount(100, AppProvider.getContentUri());
-        assertAppCount(0, AppProvider.getInstalledUri());
+        assertResultCount(100, AppProvider.getContentUri());
+        assertResultCount(0, AppProvider.getInstalledUri());
 
         for (int i = 10; i < 20; i ++) {
             pm.install("com.example.test." + i, i, "v1");
         }
 
-        assertAppCount(10, AppProvider.getInstalledUri());
-    }
-
-    private void assertAppCount(int expectedCount, Uri uri) {
-        Cursor cursor = getProvider().query(uri, getMinimalProjection(), null, null, null);
-        assertNotNull(cursor);
-        assertEquals(expectedCount, cursor.getCount());
+        assertResultCount(10, AppProvider.getInstalledUri());
     }
 
     public void testInsert() {
@@ -114,25 +118,86 @@ public class AppProviderTest extends FDroidProviderTest<AppProvider> {
     }
 
     private Cursor queryAllApps() {
-        return getProvider().query(AppProvider.getContentUri(), getMinimalProjection(), null, null, null);
+        return getMockContentResolver().query(AppProvider.getContentUri(), getMinimalProjection(), null, null, null);
+    }
+
+    public void testCategoriesSingle() {
+        insertAppWithCategory("com.dog", "Dog", "Animal");
+        insertAppWithCategory("com.rock", "Rock", "Mineral");
+        insertAppWithCategory("com.banana", "Banana", "Vegetable");
+
+        List<String> categories = AppProvider.Helper.categories(getMockContext());
+        String[] expected = new String[] {
+            getMockContext().getResources().getString(R.string.category_whatsnew),
+            getMockContext().getResources().getString(R.string.category_recentlyupdated),
+            getMockContext().getResources().getString(R.string.category_all),
+            "Animal",
+            "Mineral",
+            "Vegetable"
+        };
+        TestUtils.assertContainsOnly(categories, expected);
+    }
+
+    public void testCategoriesMultiple() {
+        insertAppWithCategory("com.rock.dog", "Rock-Dog", "Mineral,Animal");
+        insertAppWithCategory("com.dog.rock.apple", "Dog-Rock-Apple", "Animal,Mineral,Vegetable");
+        insertAppWithCategory("com.banana.apple", "Banana", "Vegetable,Vegetable");
+
+        List<String> categories = AppProvider.Helper.categories(getMockContext());
+        String[] expected = new String[] {
+            getMockContext().getResources().getString(R.string.category_whatsnew),
+            getMockContext().getResources().getString(R.string.category_recentlyupdated),
+            getMockContext().getResources().getString(R.string.category_all),
+
+            "Animal",
+            "Mineral",
+            "Vegetable"
+        };
+        TestUtils.assertContainsOnly(categories, expected);
+
+        insertAppWithCategory("com.example.game", "Game",
+                "Running,Shooting,Jumping,Bleh,Sneh,Pleh,Blah,Test category," +
+                "The quick brown fox jumps over the lazy dog,With apostrophe's");
+
+        List<String> categoriesLonger = AppProvider.Helper.categories(getMockContext());
+        String[] expectedLonger = new String[] {
+            getMockContext().getResources().getString(R.string.category_whatsnew),
+            getMockContext().getResources().getString(R.string.category_recentlyupdated),
+            getMockContext().getResources().getString(R.string.category_all),
+
+            "Animal",
+            "Mineral",
+            "Vegetable",
+
+            "Running",
+            "Shooting",
+            "Jumping",
+            "Bleh",
+            "Sneh",
+            "Pleh",
+            "Blah",
+            "Test category",
+            "The quick brown fox jumps over the lazy dog",
+            "With apostrophe's"
+        };
+
+        TestUtils.assertContainsOnly(categoriesLonger, expectedLonger);
     }
 
     private void insertApp(String id, String name) {
-        ContentValues values = new ContentValues(2);
-        values.put(AppProvider.DataColumns.APP_ID, id);
-        values.put(AppProvider.DataColumns.NAME, name);
+        insertApp(id, name, new ContentValues());
+    }
 
-        // Required fields (NOT NULL in the database).
-        values.put(AppProvider.DataColumns.SUMMARY, "test summary");
-        values.put(AppProvider.DataColumns.DESCRIPTION, "test description");
-        values.put(AppProvider.DataColumns.LICENSE, "GPL?");
-        values.put(AppProvider.DataColumns.IS_COMPATIBLE, 1);
-        values.put(AppProvider.DataColumns.IGNORE_ALLUPDATES, 0);
-        values.put(AppProvider.DataColumns.IGNORE_THISUPDATE, 0);
+    private void insertAppWithCategory(String id, String name,
+                                       String categories) {
+        ContentValues values = new ContentValues(1);
+        values.put(AppProvider.DataColumns.CATEGORIES, categories);
+        insertApp(id, name, values);
+    }
 
-        Uri uri = AppProvider.getContentUri();
-
-        getProvider().insert(uri, values);
+    private void insertApp(String id, String name,
+                           ContentValues additionalValues) {
+        TestUtils.insertApp(getMockContentResolver(), id, name, additionalValues);
     }
 
 }

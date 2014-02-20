@@ -2,11 +2,9 @@ package org.fdroid.fdroid.data;
 
 import android.content.ContentValues;
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
-import android.preference.PreferenceManager;
 import android.util.Log;
 import org.fdroid.fdroid.*;
 
@@ -46,6 +44,7 @@ public class DBHelper extends SQLiteOpenHelper {
             + "sig string, "
             + "srcname string, "
             + "minSdkVersion integer, "
+            + "maxSdkVersion integer, "
             + "permissions string, "
             + "features string, "
             + "nativecode string, "
@@ -86,7 +85,7 @@ public class DBHelper extends SQLiteOpenHelper {
             + "iconUrl text, "
             + "primary key(id));";
 
-    private static final int DB_VERSION = 39;
+    private static final int DB_VERSION = 40;
 
     private Context context;
 
@@ -119,49 +118,49 @@ public class DBHelper extends SQLiteOpenHelper {
     }
 
     private void renameRepoId(SQLiteDatabase db, int oldVersion) {
-        if (oldVersion < 36) {
+        if (oldVersion < 36 && !columnExists(db, TABLE_REPO, "_id")) {
 
             Log.d("FDroid", "Renaming " + TABLE_REPO + ".id to _id");
             db.beginTransaction();
 
             try {
-            // http://stackoverflow.com/questions/805363/how-do-i-rename-a-column-in-a-sqlite-database-table#805508
-            String tempTableName = TABLE_REPO + "__temp__";
-            db.execSQL("ALTER TABLE " + TABLE_REPO + " RENAME TO " + tempTableName + ";" );
+                // http://stackoverflow.com/questions/805363/how-do-i-rename-a-column-in-a-sqlite-database-table#805508
+                String tempTableName = TABLE_REPO + "__temp__";
+                db.execSQL("ALTER TABLE " + TABLE_REPO + " RENAME TO " + tempTableName + ";" );
 
-            // I realise this is available in the CREATE_TABLE_REPO above,
-            // however I have a feeling that it will need to be the same as the
-            // current structure of the table as of DBVersion 36, or else we may
-            // get into strife. For example, if there was a field that
-            // got removed, then it will break the "insert select"
-            // statement. Therefore, I've put a copy of CREATE_TABLE_REPO
-            // here that is the same as it was at DBVersion 36.
-            String createTableDdl = "create table " + TABLE_REPO + " ("
-                    + "_id integer not null primary key, "
-                    + "address text not null, "
-                    + "name text, "
-                    + "description text, "
-                    + "inuse integer not null, "
-                    + "priority integer not null, "
-                    + "pubkey text, "
-                    + "fingerprint text, "
-                    + "maxage integer not null default 0, "
-                    + "version integer not null default 0, "
-                    + "lastetag text, "
-                    + "lastUpdated string);";
+                // I realise this is available in the CREATE_TABLE_REPO above,
+                // however I have a feeling that it will need to be the same as the
+                // current structure of the table as of DBVersion 36, or else we may
+                // get into strife. For example, if there was a field that
+                // got removed, then it will break the "insert select"
+                // statement. Therefore, I've put a copy of CREATE_TABLE_REPO
+                // here that is the same as it was at DBVersion 36.
+                String createTableDdl = "create table " + TABLE_REPO + " ("
+                        + "_id integer not null primary key, "
+                        + "address text not null, "
+                        + "name text, "
+                        + "description text, "
+                        + "inuse integer not null, "
+                        + "priority integer not null, "
+                        + "pubkey text, "
+                        + "fingerprint text, "
+                        + "maxage integer not null default 0, "
+                        + "version integer not null default 0, "
+                        + "lastetag text, "
+                        + "lastUpdated string);";
 
-            db.execSQL(createTableDdl);
+                db.execSQL(createTableDdl);
 
-            String nonIdFields = "address,  name, description, inuse, priority, " +
-                    "pubkey, fingerprint, maxage, version, lastetag, lastUpdated";
+                String nonIdFields = "address,  name, description, inuse, priority, " +
+                        "pubkey, fingerprint, maxage, version, lastetag, lastUpdated";
 
-            String insertSql = "INSERT INTO " + TABLE_REPO +
-                    "(_id, " + nonIdFields + " ) " +
-                    "SELECT id, " + nonIdFields + " FROM " + tempTableName + ";";
+                String insertSql = "INSERT INTO " + TABLE_REPO +
+                        "(_id, " + nonIdFields + " ) " +
+                        "SELECT id, " + nonIdFields + " FROM " + tempTableName + ";";
 
-            db.execSQL(insertSql);
-            db.execSQL("DROP TABLE " + tempTableName + ";");
-            db.setTransactionSuccessful();
+                db.execSQL(insertSql);
+                db.execSQL("DROP TABLE " + tempTableName + ";");
+                db.setTransactionSuccessful();
             } catch (Exception e) {
                 Log.e("FDroid", "Error renaming id to _id: " + e.getMessage());
             }
@@ -272,10 +271,12 @@ public class DBHelper extends SQLiteOpenHelper {
      * default repos with values from strings.xml.
      */
     private void addNameAndDescriptionToRepo(SQLiteDatabase db, int oldVersion) {
-        if (oldVersion < 21) {
-            if (!columnExists(db, TABLE_REPO, "name"))
+        boolean nameExists = columnExists(db, TABLE_REPO, "name");
+        boolean descriptionExists = columnExists(db, TABLE_REPO, "description");
+        if (oldVersion < 21 && !(nameExists && descriptionExists)) {
+            if (!nameExists)
                 db.execSQL("alter table " + TABLE_REPO + " add column name text");
-            if (!columnExists(db, TABLE_REPO, "description"))
+            if (!descriptionExists)
                 db.execSQL("alter table " + TABLE_REPO + " add column description text");
             ContentValues values = new ContentValues();
             values.put("name", context.getString(R.string.default_repo_name));
@@ -321,7 +322,7 @@ public class DBHelper extends SQLiteOpenHelper {
     }
 
     private void addMaxAgeToRepo(SQLiteDatabase db, int oldVersion) {
-        if (oldVersion < 30) {
+        if (oldVersion < 30 && !columnExists(db, TABLE_REPO, "maxage")) {
             db.execSQL("alter table " + TABLE_REPO + " add column maxage integer not null default 0");
         }
     }

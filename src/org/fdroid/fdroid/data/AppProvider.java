@@ -66,8 +66,11 @@ public class AppProvider extends FDroidProvider {
             if (cursor != null) {
                 cursor.moveToFirst();
                 while (!cursor.isAfterLast()) {
-                    for( String s : Utils.CommaSeparatedList.make(cursor.getString(0))) {
-                        categorySet.add(s);
+                    String categoriesString = cursor.getString(0);
+                    if (categoriesString != null) {
+                        for( String s : Utils.CommaSeparatedList.make(categoriesString)) {
+                            categorySet.add(s);
+                        }
                     }
                     cursor.moveToNext();
                 }
@@ -263,6 +266,7 @@ public class AppProvider extends FDroidProvider {
         return AUTHORITY + "." + PROVIDER_NAME;
     }
 
+    @Override
     protected UriMatcher getMatcher() {
         return matcher;
     }
@@ -455,7 +459,7 @@ public class AppProvider extends FDroidProvider {
 
     @Override
     public Uri insert(Uri uri, ContentValues values) {
-        long id = write().insertOrThrow(getTableName(), null, values);
+        write().insertOrThrow(getTableName(), null, values);
         if (!isApplyingBatch()) {
             getContext().getContentResolver().notifyChange(uri, null);
         }
