@@ -2,8 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="org.fdroid.fdroid"
     android:installLocation="auto"
-    android:versionCode="590"
-    android:versionName="0.59-test" >
+    android:versionCode="600"
+    android:versionName="0.60-test" >
 
     <uses-sdk
         android:minSdkVersion="5"
@@ -48,7 +48,7 @@
         android:label="@string/app_name"
         android:allowBackup="true"
         android:theme="@style/AppThemeDark"
-        android:supportsRtl="false" >
+        android:supportsRtl="true" >
 
         <provider
             android:authorities="org.fdroid.fdroid.data.AppProvider"
